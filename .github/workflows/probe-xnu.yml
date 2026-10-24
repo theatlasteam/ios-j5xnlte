@@ -19,7 +19,7 @@ on:
 
 jobs:
   probe:
-    runs-on: macos-15
+    runs-on: macos-14
     timeout-minutes: 90
     env:
       TAG: ${{ inputs.tag || 'xnu-4903.221.2' }}
@@ -97,16 +97,49 @@ jobs:
           mkdir -p xnu/BUILD/obj/EXPORT_HDRS/libsa
           SDK=$(xcrun --sdk macosx --show-sdk-path)
           sudo mkdir -p "$SDK/usr/local/include/kernel/os"
-          # Only the one private header old XNU needs; copying the whole KDK tree
-          # duplicates #defines and breaks genassym (duplicate DEFINITION_ symbols).
-          f=$(find /Library/Developer/KDKs -name 'firehose_buffer_private.h' 2>/dev/null | head -1)
+          # Only the one private header old XNU needs. Copying the whole KDK
+          # tree duplicates #defines and breaks genassym.
+          echo "--- KDK inventory ---"
+          sudo ls /Library/Developer/KDKs 2>/dev/null || echo "no /Library/Developer/KDKs"
+          f=$(sudo find /Library/Developer/KDKs -name 'firehose_buffer_private.h' 2>/dev/null | head -1)
           if [ -n "$f" ]; then
             sudo cp "$f" "$SDK/usr/local/include/kernel/os/"
             echo "firehose header: copied from $f"
           else
             echo "firehose header: NOT FOUND in KDK"
-            find /Library/Developer/KDKs -maxdepth 4 -type d 2>/dev/null | head -20
           fi
+
+      - name: Replace fragile sed assym generator with deduping parser
+        run: |
+          set -e
+          cat > "$HOME/assym.py" <<'PY'
+          import re, sys
+          data = open(sys.argv[1], 'r', errors='replace').read()
+          pat = re.compile(r'DEFINITION__define__([A-Za-z0-9_]+):\s*\.ascii\s*"([^"]*)"')
+          seen = {}
+          for m in pat.finditer(data):
+              name, val = m.group(1), m.group(2).lstrip('$#')
+              if name not in seen:
+                  seen[name] = val
+          for name, val in seen.items():
+              print('#define %s %s' % (name, val))
+              print('#define %s_NUM %s' % (name, val))
+          sys.stderr.write('assym.py: emitted %d defs\n' % len(seen))
+          PY
+          python3 - <<'PY'
+          p = 'xnu/osfmk/conf/Makefile.template'
+          lines = open(p).read().splitlines()
+          hits = 0
+          out = []
+          for ln in lines:
+              if 'genassym.o > $@' in ln:
+                  out.append('\t$(_v)python3 $(HOME)/assym.py genassym.o > $@')
+                  hits += 1
+              else:
+                  out.append(ln)
+          open(p, 'w').write('\n'.join(out) + '\n')
+          print('patched assym rule occurrences:', hits)
+          PY
 
       - name: Attempt arm64 build
         continue-on-error: true
