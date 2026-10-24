@@ -85,11 +85,11 @@ jobs:
           cat >> xnu/makedefs/MakeInc.def <<'MK'
           ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64
           ARCH_FLAGS_ARM64 = -arch arm64
-          CFLAGS_GEN += -Wno-error=missing-include-dirs -Wno-missing-include-dirs
+          CFLAGS_GEN += -Wno-error=missing-include-dirs -Wno-missing-include-dirs -Wno-implicit-function-declaration -Wno-int-conversion
           WERROR :=
-          WARNFLAGS += -Wno-error -Wno-declaration-after-statement -Wno-pre-c11-compat -Wno-suggest-override
+          WARNFLAGS += -Wno-error -Wno-declaration-after-statement -Wno-pre-c11-compat -Wno-suggest-override -Wno-implicit-function-declaration
           MK
-          tail -n 5 xnu/makedefs/MakeInc.def
+          tail -n 6 xnu/makedefs/MakeInc.def
           # modern clang turns many old constructs into warnings; drop -Werror outright
           grep -rl -- '-Werror' xnu/makedefs 2>/dev/null | xargs -r sed -i '' 's/-Werror//g' || true
           echo "remaining -Werror refs: $(grep -rl -- '-Werror' xnu/makedefs 2>/dev/null | wc -l | tr -d ' ')"
@@ -97,6 +97,16 @@ jobs:
           mkdir -p xnu/BUILD/obj/EXPORT_HDRS/libsa
           SDK=$(xcrun --sdk macosx --show-sdk-path)
           sudo mkdir -p "$SDK/usr/local/include/kernel"
+          # old XNU wants KDK private kernel headers inside the SDK
+          for kdk in /Library/Developer/KDKs/*.kdk; do
+            [ -d "$kdk" ] || continue
+            for sub in Headers PrivateHeaders; do
+              src="$kdk/System/Library/Frameworks/Kernel.framework/Versions/A/$sub"
+              [ -d "$src" ] && sudo ditto "$src" "$SDK/usr/local/include/kernel" || true
+            done
+          done
+          ls "$SDK/usr/local/include/kernel/os/firehose_buffer_private.h" 2>/dev/null \
+            && echo "firehose header: present" || echo "firehose header: MISSING"
 
       - name: Attempt arm64 build
         continue-on-error: true
