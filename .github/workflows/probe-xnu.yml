@@ -46,6 +46,41 @@ jobs:
       - name: Show arm64 configs
         run: ls xnu/config | grep -E 'MASTER\.arm64|arm64.*exports' | tee -a report.md || true
 
+      - name: Modernize python2 build scripts for py3
+        run: |
+          set -e
+          # absolute shebangs -> env python3
+          grep -rl '^#!/usr/bin/python' xnu --include='*.py' 2>/dev/null \
+            | xargs -r sed -i '' 's|^#!/usr/bin/python$|#!/usr/bin/env python3|' || true
+          # bsd/kern/makekdebugevents.py is py2-only; replace with an equivalent py3 version
+          cat > xnu/bsd/kern/makekdebugevents.py <<'PY'
+          #!/usr/bin/env python3
+          import sys, re
+          if len(sys.argv) < 2:
+              sys.exit(1)
+          code_table = []
+          pat = re.compile(r'0x([0-9a-fA-F]+)\s+([^\s]*)')
+          with open(sys.argv[1], 'rt') as codes:
+              for line in codes:
+                  m = pat.match(line)
+                  if m:
+                      code_table.append((int(m.group(1), 16), m.group(2)))
+          print("typedef struct {")
+          print("        uint32_t   id;")
+          print("        const char *name;")
+          print("} kd_event_t;")
+          print("kd_event_t kd_events[] = {")
+          for mapping in sorted(code_table, key=lambda x: x[0]):
+              print('        {0x%x, "%s"},' % mapping)
+          print("};")
+          PY
+          # Xcode removed ctfconvert/ctfmerge; provide no-op stubs
+          mkdir -p "$HOME/ctfbin"
+          for t in ctfconvert ctfmerge; do
+            printf '#!/bin/sh\nexit 0\n' > "$HOME/ctfbin/$t"; chmod +x "$HOME/ctfbin/$t"
+          done
+          echo "$HOME/ctfbin" >> "$GITHUB_PATH"
+
       - name: Attempt arm64 build
         continue-on-error: true
         run: |
