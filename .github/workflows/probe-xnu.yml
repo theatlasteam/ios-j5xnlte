@@ -209,6 +209,15 @@ jobs:
             done
           } | tee assym-debug.txt
 
+      - name: Collect assym artifacts
+        if: always()
+        run: |
+          g=$(find xnu/BUILD -name 'genassym.o' | head -1)
+          a=$(find xnu/BUILD -name 'assym.s' | head -1)
+          [ -n "$g" ] && cp "$g" genassym.o || true
+          [ -n "$a" ] && cp "$a" assym.s || true
+          ls -l genassym.o assym.s 2>/dev/null || true
+
       - name: Summarize
         if: always()
         run: |
@@ -230,4 +239,6 @@ jobs:
             report.md
             build.log
             assym-debug.txt
+            genassym.o
+            assym.s
           retention-days: 14
