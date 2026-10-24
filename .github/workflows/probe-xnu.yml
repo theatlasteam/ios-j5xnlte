@@ -96,17 +96,17 @@ jobs:
           # dirs the 2018 build references before creating (or from the KDK)
           mkdir -p xnu/BUILD/obj/EXPORT_HDRS/libsa
           SDK=$(xcrun --sdk macosx --show-sdk-path)
-          sudo mkdir -p "$SDK/usr/local/include/kernel"
-          # old XNU wants KDK private kernel headers inside the SDK
-          for kdk in /Library/Developer/KDKs/*.kdk; do
-            [ -d "$kdk" ] || continue
-            for sub in Headers PrivateHeaders; do
-              src="$kdk/System/Library/Frameworks/Kernel.framework/Versions/A/$sub"
-              [ -d "$src" ] && sudo ditto "$src" "$SDK/usr/local/include/kernel" || true
-            done
-          done
-          ls "$SDK/usr/local/include/kernel/os/firehose_buffer_private.h" 2>/dev/null \
-            && echo "firehose header: present" || echo "firehose header: MISSING"
+          sudo mkdir -p "$SDK/usr/local/include/kernel/os"
+          # Only the one private header old XNU needs; copying the whole KDK tree
+          # duplicates #defines and breaks genassym (duplicate DEFINITION_ symbols).
+          f=$(find /Library/Developer/KDKs -name 'firehose_buffer_private.h' 2>/dev/null | head -1)
+          if [ -n "$f" ]; then
+            sudo cp "$f" "$SDK/usr/local/include/kernel/os/"
+            echo "firehose header: copied from $f"
+          else
+            echo "firehose header: NOT FOUND in KDK"
+            find /Library/Developer/KDKs -maxdepth 4 -type d 2>/dev/null | head -20
+          fi
 
       - name: Attempt arm64 build
         continue-on-error: true
