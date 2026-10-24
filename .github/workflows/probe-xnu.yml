@@ -88,8 +88,9 @@ jobs:
           CFLAGS_GEN += -Wno-error=missing-include-dirs -Wno-missing-include-dirs -Wno-implicit-function-declaration -Wno-int-conversion
           WERROR :=
           WARNFLAGS += -Wno-error -Wno-declaration-after-statement -Wno-pre-c11-compat -Wno-suggest-override -Wno-implicit-function-declaration
+          SFLAGS_GEN += -x assembler-with-cpp
           MK
-          tail -n 6 xnu/makedefs/MakeInc.def
+          tail -n 7 xnu/makedefs/MakeInc.def
           # modern clang turns many old constructs into warnings; drop -Werror outright
           grep -rl -- '-Werror' xnu/makedefs 2>/dev/null | xargs -r sed -i '' 's/-Werror//g' || true
           echo "remaining -Werror refs: $(grep -rl -- '-Werror' xnu/makedefs 2>/dev/null | wc -l | tr -d ' ')"
