@@ -80,6 +80,13 @@ jobs:
             printf '#!/bin/sh\nexit 0\n' > "$HOME/ctfbin/$t"; chmod +x "$HOME/ctfbin/$t"
           done
           echo "$HOME/ctfbin" >> "$GITHUB_PATH"
+          # The public tree derives -arch from Apple's internal 'edm' tool
+          # (not shipped publicly), leaving ARCH_FLAGS_ARM64 empty. Pin it.
+          cat >> xnu/makedefs/MakeInc.def <<'MK'
+          ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64
+          ARCH_FLAGS_ARM64 = -arch arm64
+          MK
+          tail -n 3 xnu/makedefs/MakeInc.def
 
       - name: Attempt arm64 build
         continue-on-error: true
