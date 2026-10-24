@@ -90,6 +90,9 @@ jobs:
           WARNFLAGS += -Wno-error -Wno-declaration-after-statement -Wno-pre-c11-compat -Wno-suggest-override
           MK
           tail -n 5 xnu/makedefs/MakeInc.def
+          # modern clang turns many old constructs into warnings; drop -Werror outright
+          grep -rl -- '-Werror' xnu/makedefs 2>/dev/null | xargs -r sed -i '' 's/-Werror//g' || true
+          echo "remaining -Werror refs: $(grep -rl -- '-Werror' xnu/makedefs 2>/dev/null | wc -l | tr -d ' ')"
           # dirs the 2018 build references before creating (or from the KDK)
           mkdir -p xnu/BUILD/obj/EXPORT_HDRS/libsa
           SDK=$(xcrun --sdk macosx --show-sdk-path)
