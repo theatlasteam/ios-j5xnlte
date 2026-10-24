@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ios-j5xnlte — iOS on a Galaxy J5</title>
+<meta name="description" content="A from-scratch effort to bring iOS to the Samsung Galaxy J5 (MSM8916 / Snapdragon 410).">
+<style>
+  :root{
+    --bg:#07080d; --bg2:#0d1018; --card:#11141dcc; --line:#222838;
+    --txt:#e8ecf6; --dim:#8a93a8; --faint:#5b6376;
+    --a:#5b8cff; --a2:#a06bff; --ok:#3ddc97; --warn:#ffb454; --bad:#ff5d73; --run:#5bc8ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:
+      radial-gradient(1200px 600px at 15% -10%, #16204a55, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #3a1a5a55, transparent 55%),
+      var(--bg);
+    color:var(--txt);
+    font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--a);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+  header.hero{padding:96px 0 64px;position:relative}
+  .kicker{font:600 13px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--a);opacity:.9}
+  h1{font-size:clamp(2.4rem,6vw,4.2rem);line-height:1.03;margin:.35em 0 .2em;letter-spacing:-.03em;font-weight:800}
+  h1 .grad{background:linear-gradient(100deg,var(--a),var(--a2) 60%,#ff8bd0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:clamp(1.05rem,2.2vw,1.35rem);color:var(--dim);max-width:62ch;margin:0 0 2em}
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:#ffffff08;font-size:13px;color:var(--dim)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 12px var(--ok)}
+  .dot.run{background:var(--run);box-shadow:0 0 12px var(--run);animation:p 1.6s infinite}
+  .dot.warn{background:var(--warn);box-shadow:0 0 12px var(--warn)}
+  .dot.bad{background:var(--bad);box-shadow:0 0 12px var(--bad)}
+  @keyframes p{50%{opacity:.35}}
+  section{padding:56px 0;border-top:1px solid var(--line)}
+  h2{font-size:1.6rem;letter-spacing:-.02em;margin:0 0 .3em}
+  .sub{color:var(--faint);margin:0 0 2em;font-size:.96rem}
+  .grid{display:grid;gap:16px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;backdrop-filter:blur(8px)}
+  .card h3{margin:0 0 6px;font-size:.95rem;letter-spacing:.02em;color:var(--dim);font-weight:600}
+  .card .v{font-size:1.35rem;font-weight:700;letter-spacing:-.01em}
+  .card .m{font:12px/1.5 var(--mono);color:var(--faint);margin-top:4px}
+  .timeline{position:relative;margin-left:6px;padding-left:30px}
+  .timeline:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:linear-gradient(var(--ok),var(--warn) 55%,var(--line))}
+  .step{position:relative;margin:0 0 22px}
+  .step:before{content:"";position:absolute;left:-29px;top:6px;width:14px;height:14px;border-radius:50%;background:var(--bg2);border:2px solid var(--line)}
+  .step.ok:before{border-color:var(--ok);background:var(--ok);box-shadow:0 0 14px #3ddc9788}
+  .step.run:before{border-color:var(--run);background:var(--run);box-shadow:0 0 14px #5bc8ff88;animation:p 1.6s infinite}
+  .step.warn:before{border-color:var(--warn);background:var(--warn)}
+  .step.bad:before{border-color:var(--bad);background:var(--bad)}
+  .step .t{font-weight:700;font-size:1.02rem}
+  .step .d{color:var(--dim);font-size:.94rem}
+  .step .tag{font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-left:8px;padding:4px 8px;border-radius:6px;vertical-align:2px}
+  .tag.ok{color:var(--ok);background:#3ddc9714}
+  .tag.run{color:var(--run);background:#5bc8ff14}
+  .tag.warn{color:var(--warn);background:#ffb45414}
+  .tag.bad{color:var(--bad);background:#ff5d7314}
+  pre{background:#0a0c12;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow:auto;font:13px/1.6 var(--mono);color:#c8d2e8}
+  code{font-family:var(--mono);font-size:.92em;background:#ffffff0d;padding:2px 6px;border-radius:5px}
+  pre code{background:none;padding:0}
+  .callout{border-left:3px solid var(--warn);background:#ffb4540d;padding:16px 20px;border-radius:0 12px 12px 0;color:var(--dim)}
+  .callout strong{color:var(--txt)}
+  .table{width:100%;border-collapse:collapse;font-size:.94rem}
+  .table th,.table td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line)}
+  .table th{color:var(--faint);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
+  .table td:first-child{color:var(--dim)}
+  footer{padding:48px 0 72px;border-top:1px solid var(--line);color:var(--faint);font-size:.88rem}
+  .badge{display:inline-block;padding:3px 9px;border-radius:7px;font:600 11px/1.6 var(--mono);letter-spacing:.05em}
+  .b-ok{background:#3ddc9718;color:var(--ok)} .b-run{background:#5bc8ff18;color:var(--run)}
+  .b-warn{background:#ffb45418;color:var(--warn)} .b-bad{background:#ff5d7318;color:var(--bad)}
+  @media(max-width:640px){header.hero{padding:64px 0 40px}section{padding:40px 0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">HackiOS · MSM8916 bring-up</div>
+  <h1>ios<span class="grad">-j5xnlte</span></h1>
+  <p class="lead">An honest, from-scratch attempt to run Apple's iOS on a Samsung Galaxy J5 — a 2015-era Snapdragon 410 phone. No themes, no launchers: real XNU boot chain, real hardware.</p>
+  <div class="pills">
+    <span class="pill"><span class="dot"></span>lk2nd + fastboot live</span>
+    <span class="pill"><span class="dot warn"></span>kernel build blocked</span>
+    <span class="pill"><span class="dot run"></span>research ongoing</span>
+    <span class="pill">target: iOS 10 · arm64</span>
+  </div>
+</header>
+
+<section>
+  <h2>Hardware</h2>
+  <p class="sub">Auto-detected by lk2nd on the actual device.</p>
+  <div class="grid cards">
+    <div class="card"><h3>SoC</h3><div class="v">Snapdragon 410</div><div class="m">MSM8916 · 4× Cortex-A53 · ARMv8-A (arm64-capable)</div></div>
+    <div class="card"><h3>Memory</h3><div class="v">1.9 GB</div><div class="m">tight — iOS 16 wants 3 GB; iOS 10 ran on 1 GB</div></div>
+    <div class="card"><h3>Display</h3><div class="v">720 × 1280</div><div class="m">S6E8AA5X01 AMS520KT01 HD DSI panel</div></div>
+    <div class="card"><h3>Storage</h3><div class="v">eMMC</div><div class="m">no UFS — shim storage driver differs from ios-sweet</div></div>
+    <div class="card"><h3>Bootloader</h3><div class="v">Unlocked</div><div class="m">secure:yes · lk2nd flashed &amp; verified</div></div>
+    <div class="card"><h3>Interrupts</h3><div class="v">GIC-400</div><div class="m">GICv2 — ios-sweet's shim is GICv3, full rewrite</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Progress</h2>
+  <p class="sub">Every step below is either verified on hardware or a documented finding — no wishful thinking.</p>
+  <div class="timeline">
+    <div class="step ok">
+      <div class="t">Bootloader unlocked + LineageOS 21 running <span class="tag ok">done</span></div>
+      <div class="d">adb root available; full partition table captured (mmcblk0, aboot/sbl1/modem ⇒ Qualcomm MSM8916).</div>
+    </div>
+    <div class="step ok">
+      <div class="t">lk2nd secondary bootloader flashed <span class="tag ok">verified</span></div>
+      <div class="d">Written to <code>boot</code> @ offset 0 via dd, read-back SHA-256 matched. <code>product: lk2nd-msm8916</code>, fastboot live on the phone.</div>
+    </div>
+    <div class="step ok">
+      <div class="t">Hardware auto-detected <span class="tag ok">done</span></div>
+      <div class="d">Panel <code>ss_dsi_panel_S6E8AA5X01_AMS520KT01_HD</code>, eMMC, 1.9 GB RAM, 720×1280 — the exact inputs a shim needs.</div>
+    </div>
+    <div class="step bad">
+      <div class="t">Build iOS 10 XNU from source (arm64) <span class="tag bad">impossible</span></div>
+      <div class="d">Public <code>xnu-3789.70.16</code> ships only <code>config/*_x86_64</code> — no <code>MASTER.arm64</code>, no arm64 exports. Apple never published ARM64 kernel configs for the iOS 10 era. Clean source build cannot produce an arm64 kernel.</div>
+    </div>
+    <div class="step warn">
+      <div class="t">Evaluate the kernelcache route <span class="tag warn">next</span></div>
+      <div class="d">The only remaining way to a real iOS 10 arm64 kernel is Apple's own (encrypted) kernelcache — legally gray, and QEMU-friendly but Apple-driver-bound, so it does not directly give MSM8916 drivers.</div>
+    </div>
+    <div class="step">
+      <div class="t">MSM8916 shim: GICv2 + eMMC + MDSS <span class="tag">todo</span></div>
+      <div class="d">Rewrite ios-sweet's GICv3/UFS shim for GIC-400 and eMMC, target the J5 panel.</div>
+    </div>
+    <div class="step">
+      <div class="t">iOS userland root + launchd <span class="tag">todo</span></div>
+      <div class="d">HFS+ root, dyld shared cache, launchd → backboardd → SpringBoard.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The honest blocker</h2>
+  <div class="callout">
+    <strong>iOS 10 arm64 cannot be built from open source.</strong> Modern XNU (iOS 16 era) builds arm64 because Apple Silicon made those configs public. The iOS 10 snapshot predates that and is x86_64-only. So the clean route is closed; what remains is Apple's encrypted kernelcache (gray) or a newer iOS (wrong ABI for iOS 10 userland).
+  </div>
+  <pre><code>$ ls xnu-3789/config | grep -i arm
+# (no output)
+
+$ ls xnu-3789/config | grep x86_64
+BSDKernel.x86_64.exports
+IOKit.x86_64.exports
+Libkern.x86_64.exports
+MASTER.x86_64
+...</code></pre>
+</section>
+
+<section>
+  <h2>Why this is hard</h2>
+  <table class="table">
+    <thead><tr><th>Component</th><th>ios-sweet (SM7150)</th><th>This device (MSM8916)</th></tr></thead>
+    <tbody>
+      <tr><td>Interrupts</td><td>GICv3 (redistributor)</td><td>GIC-400 / GICv2 (MMIO CPU IF)</td></tr>
+      <tr><td>Storage</td><td>UFS host driver</td><td>eMMC / SDCC</td></tr>
+      <tr><td>Display</td><td>AppleCLCD, iPhone X panel</td><td>MDSS/DSI, S6E8AA5X01</td></tr>
+      <tr><td>DDR</td><td>upper bank ~0xb0000000</td><td>2 GB @ 0x80000000</td></tr>
+      <tr><td>Kernel</td><td>xnu-8796, buildable arm64</td><td>xnu-3789, x86_64-only source</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Roadmap</h2>
+  <div class="grid cards">
+    <div class="card"><h3>01 · Boot chain</h3><div class="v" style="font-size:1.05rem">lk2nd → fastboot</div><div class="m"><span class="badge b-ok">complete</span></div></div>
+    <div class="card"><h3>02 · Kernel</h3><div class="v" style="font-size:1.05rem">obtain bootable arm64 XNU</div><div class="m"><span class="badge b-bad">blocked on source</span></div></div>
+    <div class="card"><h3>03 · Shim</h3><div class="v" style="font-size:1.05rem">GICv2 · eMMC · MDSS</div><div class="m"><span class="badge b-warn">design</span></div></div>
+    <div class="card"><h3>04 · Userland</h3><div class="v" style="font-size:1.05rem">launchd → SpringBoard</div><div class="m"><span class="badge b-warn">upstream of 02</span></div></div>
+  </div>
+</section>
+
+<footer>
+  <p><strong>ios-j5xnlte</strong> · experimental hardware bring-up · not affiliated with Apple or Samsung.</p>
+  <p style="margin-top:6px">Boot chain proven on real hardware. Kernel path documented honestly. Built on the shoulders of <a href="https://github.com/dipa-studio/ios-sweet">ios-sweet</a> and <a href="https://github.com/msm8916-mainline">msm8916-mainline</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>
