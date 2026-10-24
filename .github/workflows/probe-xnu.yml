@@ -86,8 +86,10 @@ jobs:
           ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64
           ARCH_FLAGS_ARM64 = -arch arm64
           CFLAGS_GEN += -Wno-error=missing-include-dirs -Wno-missing-include-dirs
+          WERROR :=
+          WARNFLAGS += -Wno-error -Wno-declaration-after-statement -Wno-pre-c11-compat -Wno-suggest-override
           MK
-          tail -n 3 xnu/makedefs/MakeInc.def
+          tail -n 5 xnu/makedefs/MakeInc.def
           # dirs the 2018 build references before creating (or from the KDK)
           mkdir -p xnu/BUILD/obj/EXPORT_HDRS/libsa
           SDK=$(xcrun --sdk macosx --show-sdk-path)
