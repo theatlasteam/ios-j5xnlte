@@ -114,10 +114,20 @@ jobs:
           cat > /tmp/firehose_buffer_private.h <<'HF'
           #ifndef __os_firehose_buffer_private_h
           #define __os_firehose_buffer_private_h
+          #include <stdbool.h>
+          #include <stdint.h>
           #include <firehose/firehose_types_private.h>
           #include <firehose/tracepoint_private.h>
           #include <firehose/chunk_private.h>
           #define FIREHOSE_BUFFER_KERNEL_CHUNK_COUNT 1
+          #define FIREHOSE_BUFFER_KERNEL_DEFAULT_CHUNK_COUNT 2
+          #define FIREHOSE_BUFFER_KERNEL_DEFAULT_IO_PAGES 1
+          static inline bool
+          __firehose_kernel_configuration_valid(uint8_t chunk_count, uint8_t io_pages)
+          {
+            (void)chunk_count; (void)io_pages;
+            return true;
+          }
           static inline firehose_tracepoint_t
           __firehose_buffer_tracepoint_reserve(uint64_t stamp, firehose_stream_t stream,
               uint16_t publen, uint8_t qos, void *trace_id)
@@ -141,16 +151,23 @@ jobs:
           cat > "$HOME/assym.py" <<'PY'
           import re, sys
           data = open(sys.argv[1], 'r', errors='replace').read()
-          pat = re.compile(r'DEFINITION__define__([A-Za-z0-9_]+):\s*\.ascii\s*"([^"]*)"')
+          labels = [(m.start(), m.group(1)) for m in
+                    re.finditer(r'DEFINITION__define__([A-Za-z0-9_]+):', data)]
           seen = {}
-          for m in pat.finditer(data):
-              name, val = m.group(1), m.group(2).lstrip('$#')
-              if name not in seen:
-                  seen[name] = val
+          missing = []
+          for pos, name in labels:
+              if name in seen:
+                  continue
+              m = re.search(r'\.ascii\s*"([^"]*)"', data[pos:pos + 400])
+              if not m:
+                  missing.append(name)
+                  continue
+              seen[name] = m.group(1).lstrip('$#')
           for name, val in seen.items():
               print('#define %s %s' % (name, val))
               print('#define %s_NUM %s' % (name, val))
-          sys.stderr.write('assym.py: emitted %d defs\n' % len(seen))
+          sys.stderr.write('assym.py: %d labels, %d defs, missing=%s\n'
+                           % (len(labels), len(seen), ','.join(missing)))
           PY
           python3 - <<'PY'
           p = 'xnu/osfmk/conf/Makefile.template'
@@ -184,11 +201,11 @@ jobs:
             find xnu/BUILD -name 'assym.s' | head -5
             for f in $(find xnu/BUILD -name 'assym.s' | head -3); do
               echo "== $f ($(wc -l < "$f" 2>/dev/null) lines)"
-              grep -n 'SS64_FP\|SS64_SP\|ARM_CONTEXT_SIZE' "$f" || echo "(missing SS64_FP)"
+              grep -n 'SS64_FP\|MAX_CPUS\|cdeSize' "$f" || echo "(missing defines)"
             done
             for g in $(find xnu/BUILD -name 'genassym.o' | head -3); do
               echo "== $g labels=$(grep -c 'DEFINITION__define__' "$g" 2>/dev/null)"
-              grep -n -A1 'DEFINITION__define__SS64_FP\|DEFINITION__define__ARM_CONTEXT_SIZE' "$g" | head -16
+              grep -n -A1 'DEFINITION__define__MAX_CPUS\|DEFINITION__define__cdeSize' "$g" | head -12
             done
           } | tee assym-debug.txt
 
