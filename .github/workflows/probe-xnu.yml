@@ -19,7 +19,7 @@ on:
 
 jobs:
   probe:
-    runs-on: macos-13
+    runs-on: macos-15
     timeout-minutes: 90
     env:
       TAG: ${{ inputs.tag || 'xnu-4903.221.2' }}
