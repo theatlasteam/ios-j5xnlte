@@ -21,23 +21,26 @@ A from-scratch attempt to run **iOS** on a **Samsung Galaxy J5** (MSM8916 / Snap
 2. **lk2nd flashed** — written to `boot` offset 0, read-back SHA-256 verified. Fastboot live: `product: lk2nd-msm8916`.
 3. **Hardware auto-detected** — panel, storage, RAM.
 
-## The blocker (important)
+## The iOS 10 blocker — and the clean way around it
 
-The public **`xnu-3789.70.16`** (iOS 10 generation) source tree contains **only x86_64 kernel configurations**:
+The public **`xnu-3789.70.16`** (iOS 10) source tree contains **only x86_64 kernel configurations** — no `MASTER.arm64`. So a clean source build of an **arm64 iOS 10 kernel is impossible**.
 
-```
-$ ls xnu-3789/config | grep -i arm      # nothing
-$ ls xnu-3789/config | grep x86_64
-BSDKernel.x86_64.exports
-MASTER.x86_64
-...
-```
+But the cutoff is exactly iOS 10. From **`xnu-4570` (iOS 11)** onward Apple published arm64 configs:
 
-Apple never published ARM64 kernel configs for that era (there were no arm64 Macs). So a clean source build of an **arm64 iOS 10 kernel is not possible**. Modern XNU (iOS 16 era) *is* buildable arm64 because Apple Silicon made those configs public — which is why `ios-sweet` works and this doesn't, yet.
+| tag | iOS gen | arm64 configs |
+|---|---|---|
+| `xnu-3789.70.16` | iOS 10 | none (x86_64 only) |
+| `xnu-4570.71.2` | iOS 11 | `MASTER.arm64` |
+| `xnu-4903.221.2` | iOS 12 | `MASTER.arm64` |
+| `xnu-6153.141.1` | iOS 13 | `MASTER.arm64` |
+| `xnu-7195.141.2` | iOS 14 | `MASTER.arm64.iPhoneOS` |
 
-Remaining options for a real iOS 10 arm64 kernel:
-- Apple's encrypted kernelcache (legally gray; QEMU-friendly but bound to Apple drivers, so it doesn't give MSM8916 drivers directly), or
-- a newer iOS generation with a buildable arm64 kernel (wrong ABI for iOS 10 userland).
+So instead of decrypting Apple firmware (the "gray" route), we **target a slightly newer iOS**:
+
+- **iOS 12 (`xnu-4903`)** — 1 GB-RAM class (iPhone 5s/6); best fit for this device's 1.9 GB. **Chosen target.**
+- **iOS 14 (`xnu-7195`)** — explicit `MASTER.arm64.iPhoneOS` config; easiest build support, but 2 GB class.
+
+No kernelcache decryption required.
 
 ## Why it's hard (vs ios-sweet)
 

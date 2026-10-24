@@ -1,0 +1,78 @@
+name: probe-xnu
+
+# Reproducible feasibility report for building an arm64 (iOS) kernel from the
+# PUBLIC XNU source, plus a first clean build attempt at iOS 12 (xnu-4903).
+#
+# Key finding: the public xnu-3789 (iOS 10) tree is x86_64-only, but arm64
+# configs appear from xnu-4570 (iOS 11) onward. No Apple firmware/decryption
+# is involved anywhere in this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: XNU tag to attempt building
+        default: xnu-4903.221.2
+  push:
+    paths:
+      - ".github/workflows/probe-xnu.yml"
+
+jobs:
+  probe:
+    runs-on: macos-13
+    timeout-minutes: 90
+    env:
+      TAG: ${{ inputs.tag || 'xnu-4903.221.2' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe arm64 config ladder
+        run: |
+          {
+            echo "## arm64 kernel-config presence per XNU generation"
+            echo ""
+            echo "| tag | MASTER.arm64* configs |"
+            echo "|---|---|"
+            for t in xnu-3789.70.16 xnu-4570.71.2 xnu-4903.221.2 xnu-6153.141.1 xnu-7195.141.2; do
+              n=$(curl -s "https://api.github.com/repos/apple-oss-distributions/xnu/contents/config?ref=$t" \
+                  | grep -oE '"name": "MASTER\.arm64[^"]*"' | wc -l | tr -d ' ')
+              echo "| $t | $n |"
+            done
+          } | tee report.md
+
+      - name: Clone selected XNU
+        run: git clone --depth 1 --branch "$TAG" https://github.com/apple-oss-distributions/xnu.git xnu
+
+      - name: Show arm64 configs
+        run: ls xnu/config | grep -E 'MASTER\.arm64|arm64.*exports' | tee -a report.md || true
+
+      - name: Attempt arm64 build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          SDK=$(xcrun --sdk macosx --show-sdk-path)
+          echo "SDKROOT=$SDK" | tee build.log
+          make -C xnu SDKROOT="$SDK" ARCH_CONFIGS=ARM64 \
+            KERNEL_CONFIGS=DEVELOPMENT -j"$(sysctl -n hw.ncpu)" 2>&1 | tee -a build.log || true
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo ""
+            echo "## build attempt: $TAG (ARCH_CONFIGS=ARM64)"
+            echo '```'
+            tail -n 30 build.log 2>/dev/null || echo "no log"
+            echo '```'
+            echo ""
+            ls -la xnu/BUILD/obj/DEVELOPMENT_ARM64/kernel.development 2>/dev/null || echo "no kernel artifact produced"
+          } | tee -a report.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xnu-arm64-probe
+          path: |
+            report.md
+            build.log
+          retention-days: 14

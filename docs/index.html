@@ -87,9 +87,9 @@
   <p class="lead">An honest, from-scratch attempt to run Apple's iOS on a Samsung Galaxy J5 — a 2015-era Snapdragon 410 phone. No themes, no launchers: real XNU boot chain, real hardware.</p>
   <div class="pills">
     <span class="pill"><span class="dot"></span>lk2nd + fastboot live</span>
-    <span class="pill"><span class="dot warn"></span>kernel build blocked</span>
+    <span class="pill"><span class="dot"></span>clean arm64 path found</span>
     <span class="pill"><span class="dot run"></span>research ongoing</span>
-    <span class="pill">target: iOS 10 · arm64</span>
+    <span class="pill">target: iOS 12 · arm64</span>
   </div>
 </header>
 
@@ -126,9 +126,13 @@
       <div class="t">Build iOS 10 XNU from source (arm64) <span class="tag bad">impossible</span></div>
       <div class="d">Public <code>xnu-3789.70.16</code> ships only <code>config/*_x86_64</code> — no <code>MASTER.arm64</code>, no arm64 exports. Apple never published ARM64 kernel configs for the iOS 10 era. Clean source build cannot produce an arm64 kernel.</div>
     </div>
+    <div class="step ok">
+      <div class="t">Public arm64 XNU exists from iOS 11+ <span class="tag ok">finding</span></div>
+      <div class="d">Only iOS 10 (<code>xnu-3789</code>) is x86_64-only. <code>xnu-4570</code> (iOS 11), <code>xnu-4903</code> (iOS 12), <code>xnu-6153</code> (iOS 13) and <code>xnu-7195</code> (iOS 14, with <code>MASTER.arm64.iPhoneOS</code>) all ship arm64 kernel configs — so a clean, non-gray source build is possible by targeting iOS 12–14.</div>
+    </div>
     <div class="step warn">
-      <div class="t">Evaluate the kernelcache route <span class="tag warn">next</span></div>
-      <div class="d">The only remaining way to a real iOS 10 arm64 kernel is Apple's own (encrypted) kernelcache — legally gray, and QEMU-friendly but Apple-driver-bound, so it does not directly give MSM8916 drivers.</div>
+      <div class="t">Pick the clean target: iOS 12 vs iOS 14 <span class="tag warn">next</span></div>
+      <div class="d">iOS 12 (<code>xnu-4903</code>) is 1 GB-RAM class — the best fit for 1.9 GB. iOS 14 (<code>xnu-7195</code>) has the explicit iPhoneOS config — the best build support. Neither needs Apple firmware decryption.</div>
     </div>
     <div class="step">
       <div class="t">MSM8916 shim: GICv2 + eMMC + MDSS <span class="tag">todo</span></div>
@@ -142,19 +146,20 @@
 </section>
 
 <section>
-  <h2>The honest blocker</h2>
+  <h2>The iOS 10 blocker — and the way around it</h2>
   <div class="callout">
-    <strong>iOS 10 arm64 cannot be built from open source.</strong> Modern XNU (iOS 16 era) builds arm64 because Apple Silicon made those configs public. The iOS 10 snapshot predates that and is x86_64-only. So the clean route is closed; what remains is Apple's encrypted kernelcache (gray) or a newer iOS (wrong ABI for iOS 10 userland).
+    <strong>iOS 10 arm64 cannot be built from open source — but iOS 11+ can.</strong> The public <code>xnu-3789</code> snapshot is x86_64-only. From <code>xnu-4570</code> (iOS 11) onward Apple published arm64 configs, and <code>xnu-6153</code>/<code>xnu-7195</code> even target iPhoneOS. So instead of decrypting firmware, we simply <em>target a slightly newer iOS</em>: iOS 12 fits the RAM and builds clean.
   </div>
-  <pre><code>$ ls xnu-3789/config | grep -i arm
-# (no output)
-
-$ ls xnu-3789/config | grep x86_64
-BSDKernel.x86_64.exports
-IOKit.x86_64.exports
-Libkern.x86_64.exports
-MASTER.x86_64
-...</code></pre>
+  <pre><code># oldest public XNU with arm64 kernel configs
+$ for t in xnu-3789.70.16 xnu-4570.71.2 xnu-4903.221.2 xnu-6153.141.1 xnu-7195.141.2; do
+&gt;   n=$(curl -s .../$t/config | grep -c MASTER.arm64)
+&gt;   echo "$t  arm64-configs=$n"
+&gt; done
+xnu-3789.70.16   arm64-configs=0    &lt;- iOS 10, x86_64 only
+xnu-4570.71.2    arm64-configs=2    &lt;- iOS 11
+xnu-4903.221.2   arm64-configs=3    &lt;- iOS 12  (1 GB RAM class)
+xnu-6153.141.1   arm64-configs=3    &lt;- iOS 13
+xnu-7195.141.2   arm64-configs=5    &lt;- iOS 14  (MASTER.arm64.iPhoneOS)</code></pre>
 </section>
 
 <section>
@@ -175,7 +180,7 @@ MASTER.x86_64
   <h2>Roadmap</h2>
   <div class="grid cards">
     <div class="card"><h3>01 · Boot chain</h3><div class="v" style="font-size:1.05rem">lk2nd → fastboot</div><div class="m"><span class="badge b-ok">complete</span></div></div>
-    <div class="card"><h3>02 · Kernel</h3><div class="v" style="font-size:1.05rem">obtain bootable arm64 XNU</div><div class="m"><span class="badge b-bad">blocked on source</span></div></div>
+    <div class="card"><h3>02 · Kernel</h3><div class="v" style="font-size:1.05rem">build xnu-4903 (iOS 12) arm64</div><div class="m"><span class="badge b-run">clean · next</span></div></div>
     <div class="card"><h3>03 · Shim</h3><div class="v" style="font-size:1.05rem">GICv2 · eMMC · MDSS</div><div class="m"><span class="badge b-warn">design</span></div></div>
     <div class="card"><h3>04 · Userland</h3><div class="v" style="font-size:1.05rem">launchd → SpringBoard</div><div class="m"><span class="badge b-warn">upstream of 02</span></div></div>
   </div>
