@@ -241,9 +241,11 @@ jobs:
         run: |
           g=$(find xnu/BUILD -name 'genassym.o' | head -1)
           a=$(find xnu/BUILD -name 'assym.s' | head -1)
+          k=$(find xnu/BUILD -name 'kernel.development.s5l8960x' -type f | head -1)
           [ -n "$g" ] && cp "$g" genassym.o || true
           [ -n "$a" ] && cp "$a" assym.s || true
-          ls -l genassym.o assym.s 2>/dev/null || true
+          [ -n "$k" ] && cp "$k" kernel.development.s5l8960x || true
+          ls -l genassym.o assym.s kernel.development.s5l8960x 2>/dev/null || true
 
       - name: Summarize
         if: always()
@@ -255,7 +257,15 @@ jobs:
             tail -n 30 build.log 2>/dev/null || echo "no log"
             echo '```'
             echo ""
-            ls -la xnu/BUILD/obj/DEVELOPMENT_ARM64/kernel.development 2>/dev/null || echo "no kernel artifact produced"
+            k=$(find xnu/BUILD -name 'kernel.development.s5l8960x' -type f | head -1)
+            if [ -n "$k" ]; then
+              echo "## kernel artifact"
+              file "$k"
+              ls -lh "$k"
+              shasum -a 256 "$k"
+            else
+              echo "no kernel artifact produced"
+            fi
           } | tee -a report.md
 
       - uses: actions/upload-artifact@v4
@@ -268,4 +278,5 @@ jobs:
             assym-debug.txt
             genassym.o
             assym.s
+            kernel.development.s5l8960x
           retention-days: 14

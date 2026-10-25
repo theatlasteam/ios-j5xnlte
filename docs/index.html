@@ -87,8 +87,8 @@
   <p class="lead">An honest, from-scratch attempt to run Apple's iOS on a Samsung Galaxy J5 — a 2015-era Snapdragon 410 phone. No themes, no launchers: real XNU boot chain, real hardware.</p>
   <div class="pills">
     <span class="pill"><span class="dot"></span>lk2nd + fastboot live</span>
-    <span class="pill"><span class="dot"></span>clean arm64 path found</span>
-    <span class="pill"><span class="dot run"></span>research ongoing</span>
+    <span class="pill"><span class="dot"></span>public XNU arm64 builds in CI</span>
+    <span class="pill"><span class="dot warn"></span>16 KB-page blocker on A53</span>
     <span class="pill">target: iOS 12 · arm64</span>
   </div>
 </header>
@@ -122,21 +122,29 @@
       <div class="t">Hardware auto-detected <span class="tag ok">done</span></div>
       <div class="d">Panel <code>ss_dsi_panel_S6E8AA5X01_AMS520KT01_HD</code>, eMMC, 1.9 GB RAM, 720×1280 — the exact inputs a shim needs.</div>
     </div>
+    <div class="step ok">
+      <div class="t">Public XNU arm64 kernel compiles <span class="tag ok">verified</span></div>
+      <div class="d"><code>xnu-4903.221.2</code> (iOS 12) is built on macOS CI down to the final link. Working around the 2018 build system took: py2 scripts, removed CTF tools, the internal <code>edm</code> arch resolver, <code>-Werror</code>, <code>.s</code> preprocessing, a rewritten <code>genassym</code> parser, and stubs for the closed <code>libfirehose_kernel</code>/MIG symbols. This proves the toolchain — not a bootable iOS kernel.</div>
+    </div>
     <div class="step bad">
-      <div class="t">Build iOS 10 XNU from source (arm64) <span class="tag bad">impossible</span></div>
-      <div class="d">Public <code>xnu-3789.70.16</code> ships only <code>config/*_x86_64</code> — no <code>MASTER.arm64</code>, no arm64 exports. Apple never published ARM64 kernel configs for the iOS 10 era. Clean source build cannot produce an arm64 kernel.</div>
+      <div class="t">Correction: the public drop ≠ the shipped kernel <span class="tag bad">nuance</span></div>
+      <div class="d">Shipped iOS 10 kernels <em>were</em> arm64 (<code>RELEASE_ARM64_S8000</code>). What is missing from the public <code>xnu-3789</code> drop is the iOS platform config — its <code>config/</code> has only <code>MASTER</code> and <code>MASTER.x86_64</code>. So the accurate claim is “the public iOS 10 drop has no arm64 config”, not “iOS 10 had no arm64 kernel”. Likewise, looking for a literal <code>MASTER.arm64</code> is a weak test; machine configs are named <code>S5L8960X</code>, <code>T8015</code>, …</div>
     </div>
     <div class="step ok">
-      <div class="t">Public arm64 XNU exists from iOS 11+ <span class="tag ok">finding</span></div>
-      <div class="d">Only iOS 10 (<code>xnu-3789</code>) is x86_64-only. <code>xnu-4570</code> (iOS 11), <code>xnu-4903</code> (iOS 12), <code>xnu-6153</code> (iOS 13) and <code>xnu-7195</code> (iOS 14, with <code>MASTER.arm64.iPhoneOS</code>) all ship arm64 kernel configs — so a clean, non-gray source build is possible by targeting iOS 12–14.</div>
+      <div class="t">Public arm64 configs exist from iOS 11+ <span class="tag ok">finding</span></div>
+      <div class="d"><code>xnu-4570</code> (iOS 11) onward ships <code>MASTER.arm64</code>; <code>xnu-4903</code> adds <code>MASTER.arm</code>, <code>MASTER.arm64.bcm2837</code> and Apple SoC machine configs (<code>S5L8960X … T8011</code>). <code>xnu-7195</code> (iOS 14) has <code>MASTER.arm64.iPhoneOS</code>. Still not a complete iOS kernel: closed drivers/platform bits are absent.</div>
+    </div>
+    <div class="step bad">
+      <div class="t">Architectural show-stopper: 16 KB pages on Cortex-A53 <span class="tag bad">blocker</span></div>
+      <div class="d">All four J5 cores are Cortex-A53, which implements only 4 KB and 64 KB granules (<code>ID_AA64MMFR0_EL1.TGran16 == 0</code>). The stock iOS arm64 kernel/userland assume 16 KB. ios-sweet runs on A55 cores; ios-topaz <em>parks</em> its A53-class cores for exactly this reason. On the J5 there are no other cores to fall back to. The viable research path is UniXNU-style 4 KB-page XNU, not a straight ios-sweet retarget.</div>
     </div>
     <div class="step warn">
-      <div class="t">Pick the clean target: iOS 12 vs iOS 14 <span class="tag warn">next</span></div>
-      <div class="d">iOS 12 (<code>xnu-4903</code>) is 1 GB-RAM class — the best fit for 1.9 GB. iOS 14 (<code>xnu-7195</code>) has the explicit iPhoneOS config — the best build support. Neither needs Apple firmware decryption.</div>
+      <div class="t">4 KB-page XNU + kernel-only bring-up <span class="tag warn">next</span></div>
+      <div class="d">Apply the shared UniXNU/BCM2837 4 KB layout and patches to <code>xnu-4903</code>, then prove entry, timer, GICv2, console/framebuffer and a RAM-disk PID 1 before touching iOS userland. Whether iOS 12 userland tolerates 4 KB pages is unproven.</div>
     </div>
     <div class="step">
       <div class="t">MSM8916 shim: GICv2 + eMMC + MDSS <span class="tag">todo</span></div>
-      <div class="d">Rewrite ios-sweet's GICv3/UFS shim for GIC-400 and eMMC, target the J5 panel.</div>
+      <div class="d">Rewrite ios-sweet's GICv3/UFS shim for GIC-400 and eMMC, and target the J5 panel (or reuse the bootloader framebuffer).</div>
     </div>
     <div class="step">
       <div class="t">iOS userland root + launchd <span class="tag">todo</span></div>
@@ -146,20 +154,24 @@
 </section>
 
 <section>
-  <h2>The iOS 10 blocker — and the way around it</h2>
+  <h2>What the public XNU drop actually contains</h2>
   <div class="callout">
-    <strong>iOS 10 arm64 cannot be built from open source — but iOS 11+ can.</strong> The public <code>xnu-3789</code> snapshot is x86_64-only. From <code>xnu-4570</code> (iOS 11) onward Apple published arm64 configs, and <code>xnu-6153</code>/<code>xnu-7195</code> even target iPhoneOS. So instead of decrypting firmware, we simply <em>target a slightly newer iOS</em>: iOS 12 fits the RAM and builds clean.
+    <strong>Shipped iOS kernels were always ARM. The public drop is the catch.</strong>
+    Apple shipped <code>RELEASE_ARM64_S8000</code> for iOS 10, so “iOS 10 had no arm64 kernel” is false. What is missing is the <em>public</em> iOS platform config: the <code>xnu-3789</code> drop is effectively the macOS variant, with only <code>MASTER</code> and <code>MASTER.x86_64</code>. Also, grepping for a literal <code>MASTER.arm64</code> is unreliable — real machine configs are named <code>S5L8960X</code>, <code>T8015</code>, <code>BCM2837</code>, …
   </div>
-  <pre><code># oldest public XNU with arm64 kernel configs
-$ for t in xnu-3789.70.16 xnu-4570.71.2 xnu-4903.221.2 xnu-6153.141.1 xnu-7195.141.2; do
-&gt;   n=$(curl -s .../$t/config | grep -c MASTER.arm64)
-&gt;   echo "$t  arm64-configs=$n"
-&gt; done
-xnu-3789.70.16   arm64-configs=0    &lt;- iOS 10, x86_64 only
-xnu-4570.71.2    arm64-configs=2    &lt;- iOS 11
-xnu-4903.221.2   arm64-configs=3    &lt;- iOS 12  (1 GB RAM class)
-xnu-6153.141.1   arm64-configs=3    &lt;- iOS 13
-xnu-7195.141.2   arm64-configs=5    &lt;- iOS 14  (MASTER.arm64.iPhoneOS)</code></pre>
+  <pre><code># list what is actually in config/ (not a filename guess)
+$ git ls-tree --name-only &lt;tag&gt;:config | grep -Ei 'arm|master'
+xnu-3789: MASTER  MASTER.x86_64                 # macOS-oriented drop
+xnu-4570: MASTER  MASTER.arm64 ...             # first public arm64 drop
+xnu-4903: MASTER.arm  MASTER.arm64  MASTER.arm64.bcm2837  ...  # chosen
+xnu-7195: MASTER.arm64.iPhoneOS ...            # explicit iPhoneOS config
+
+# and the supported machine list, which is what the build really needs
+xnu-4903:makedefs/MakeInc.def
+  SUPPORTED_ARM64_MACHINE_CONFIGS = S5L8960X T7000 T7001 S8000 S8001 T8010 T8011 BCM2837
+  DEFAULT_ARM64_MACHINE_CONFIG    = S5L8960X
+  => build path: DEVELOPMENT^ARM64^S5L8960X</code></pre>
+  <p class="sub" style="margin-top:1.2em">Even with arm64 configs, the drop is not a complete iOS kernel. At link time it still asks for Apple's closed <code>libfirehose_kernel</code>; we stub that (and a stale MIG symbol) to reach a linked kernel. That is a toolchain milestone, not a boot.</p>
 </section>
 
 <section>
@@ -171,7 +183,8 @@ xnu-7195.141.2   arm64-configs=5    &lt;- iOS 14  (MASTER.arm64.iPhoneOS)</code>
       <tr><td>Storage</td><td>UFS host driver</td><td>eMMC / SDCC</td></tr>
       <tr><td>Display</td><td>AppleCLCD, iPhone X panel</td><td>MDSS/DSI, S6E8AA5X01</td></tr>
       <tr><td>DDR</td><td>upper bank ~0xb0000000</td><td>2 GB @ 0x80000000</td></tr>
-      <tr><td>Kernel</td><td>xnu-8796, buildable arm64</td><td>xnu-3789, x86_64-only source</td></tr>
+      <tr><td>Kernel</td><td>xnu-8796, buildable arm64</td><td>xnu-4903, builds arm64 (CI)</td></tr>
+      <tr><td>Page granule</td><td>16 KB (A55 supports it)</td><td><b>16 KB unsupported by A53</b> — needs 4 KB XNU</td></tr>
     </tbody>
   </table>
 </section>
@@ -180,9 +193,10 @@ xnu-7195.141.2   arm64-configs=5    &lt;- iOS 14  (MASTER.arm64.iPhoneOS)</code>
   <h2>Roadmap</h2>
   <div class="grid cards">
     <div class="card"><h3>01 · Boot chain</h3><div class="v" style="font-size:1.05rem">lk2nd → fastboot</div><div class="m"><span class="badge b-ok">complete</span></div></div>
-    <div class="card"><h3>02 · Kernel</h3><div class="v" style="font-size:1.05rem">build xnu-4903 (iOS 12) arm64</div><div class="m"><span class="badge b-run">clean · next</span></div></div>
-    <div class="card"><h3>03 · Shim</h3><div class="v" style="font-size:1.05rem">GICv2 · eMMC · MDSS</div><div class="m"><span class="badge b-warn">design</span></div></div>
-    <div class="card"><h3>04 · Userland</h3><div class="v" style="font-size:1.05rem">launchd → SpringBoard</div><div class="m"><span class="badge b-warn">upstream of 02</span></div></div>
+    <div class="card"><h3>02 · Kernel</h3><div class="v" style="font-size:1.05rem">xnu-4903 arm64 builds</div><div class="m"><span class="badge b-ok">compiles + links in CI</span></div></div>
+    <div class="card"><h3>03 · Pages</h3><div class="v" style="font-size:1.05rem">16 KB → 4 KB XNU</div><div class="m"><span class="badge b-bad">A53 show-stopper</span></div></div>
+    <div class="card"><h3>04 · Shim</h3><div class="v" style="font-size:1.05rem">GICv2 · eMMC · MDSS</div><div class="m"><span class="badge b-warn">design</span></div></div>
+    <div class="card"><h3>05 · Userland</h3><div class="v" style="font-size:1.05rem">launchd → SpringBoard</div><div class="m"><span class="badge b-warn">after 03+04</span></div></div>
   </div>
 </section>
 
