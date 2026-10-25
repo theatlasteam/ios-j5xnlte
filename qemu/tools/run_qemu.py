@@ -53,12 +53,21 @@ def stub(ba_pa, entry_pa):
                        ba_pa, entry_pa)
 
 
+def patch_stub(template, ba_pa, entry_pa):
+    """Patch the two literal quads at the end of the raspi3b EL3->EL1 stub."""
+    b = bytearray(template)
+    assert len(b) >= 16
+    struct.pack_into('<QQ', b, len(b) - 16, ba_pa, entry_pa)
+    return bytes(b)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('payload')
     ap.add_argument('outdir')
     ap.add_argument('--secs', type=int, default=25)
     ap.add_argument('--live', action='store_true')
+    ap.add_argument('--stub', help='prebuilt raspi3b stub template (last 16 bytes patched)')
     a = ap.parse_args()
 
     payload = open(a.payload, 'rb').read()
@@ -67,19 +76,21 @@ def main():
     ram = os.path.join(a.outdir, 'ram.bin')
     stb = os.path.join(a.outdir, 'stub.bin')
     open(ram, 'wb').write(img)
-    open(stb, 'wb').write(stub(ba_pa, entry_pa))
+    if a.stub:
+        open(stb, 'wb').write(patch_stub(open(a.stub, 'rb').read(), ba_pa, entry_pa))
+    else:
+        open(stb, 'wb').write(stub(ba_pa, entry_pa))
     serial = os.path.join(a.outdir, 'serial.txt')
     log = os.path.join(a.outdir, 'qemu.log')
     print(f'phys_base={phys_base:#x} boot_args={ba_pa:#x} entry={entry_pa:#x}', file=sys.stderr)
 
     cmd = [
-        'qemu-system-aarch64', '-M', 'raspi3b', '-smp', '1', '-m', '1G',
+        'qemu-system-aarch64', '-M', 'raspi3b', '-smp', '4', '-m', '1G',
         '-nographic', '-monitor', 'none', '-no-reboot',
         '-serial', 'null', '-serial', f'file:{serial}',
         '-d', 'int,guest_errors,unimp', '-D', log,
-        '-device', f'loader,file={stb},addr={STUB_PA:#x},force-raw=on',
+        '-device', f'loader,file={stb},addr={STUB_PA:#x},force-raw=on,cpu-num=0',
         '-device', f'loader,file={ram},addr={phys_base:#x},force-raw=on',
-        '-device', f'loader,addr={STUB_PA:#x},cpu-num=0',
     ]
     print(' '.join(cmd), file=sys.stderr)
     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL)

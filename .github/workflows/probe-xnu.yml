@@ -226,7 +226,12 @@ jobs:
           assert needle in s, 'BCM2837 board block not found'
           s = s.replace(needle, needle + '#define CORE_NCTRS 8\n', 1)
           open(p, 'w').write(s)
-          print('patched CORE_NCTRS for BCM2837')
+          p = 'xnu/config/MASTER.arm64.bcm2837'
+          s = open(p).read()
+          if 'options CONFIG_BLOCKS' not in s:
+              s += '\noptions CONFIG_BLOCKS\t# Blocks runtime (needed by IOKit C++)\n'
+              open(p, 'w').write(s)
+          print('patched CORE_NCTRS + CONFIG_BLOCKS for BCM2837')
           PY
 
       - name: Attempt arm64 build
