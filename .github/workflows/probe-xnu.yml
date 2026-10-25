@@ -141,10 +141,26 @@ jobs:
           {
             (void)ft; (void)ftid;
           }
+          static inline void *
+          __firehose_buffer_create(size_t *size)
+          {
+            if (size) { *size = 0; }
+            return (void *)0;
+          }
+          static inline void
+          __firehose_merge_updates(firehose_push_reply_t data)
+          {
+            (void)data;
+          }
           #endif
           HF
           sudo cp /tmp/firehose_buffer_private.h "$SDK/usr/local/include/kernel/os/firehose_buffer_private.h"
           echo "firehose shim installed"
+          # Stale MIG runtime symbol used only by NFS GSS; not present in public tree.
+          cat >> xnu/bsd/kern/subr_log.c <<'C'
+          void mach_msg_destroy_from_kernel(void *msg) { (void)msg; }
+          C
+          echo "gssd stub installed"
 
       - name: Replace fragile sed assym generator with deduping parser
         run: |
