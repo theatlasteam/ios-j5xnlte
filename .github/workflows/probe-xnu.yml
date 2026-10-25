@@ -264,7 +264,7 @@ jobs:
         run: |
           g=$(find xnu/BUILD -name 'genassym.o' | head -1)
           a=$(find xnu/BUILD -name 'assym.s' | head -1)
-          k=$(find xnu/BUILD -name "kernel.development.*" -type f -not -name '*.dSYM' | head -1)
+          k=$(find xnu/BUILD -name "kernel.development.*" -type f ! -name '*.exp' ! -name '*.a' ! -name '*.unstripped' ! -path '*/.dSYM/*' | head -1)
           [ -n "$g" ] && cp "$g" genassym.o || true
           [ -n "$a" ] && cp "$a" assym.s || true
           [ -n "$k" ] && cp "$k" kernel.development || true
@@ -280,7 +280,7 @@ jobs:
             tail -n 30 build.log 2>/dev/null || echo "no log"
             echo '```'
             echo ""
-            k=$(find xnu/BUILD -name "kernel.development.*" -type f -not -name '*.dSYM' | head -1)
+            k=$(find xnu/BUILD -name "kernel.development.*" -type f ! -name '*.exp' ! -name '*.a' ! -name '*.unstripped' ! -path '*/.dSYM/*' | head -1)
             if [ -n "$k" ]; then
               echo "## kernel artifact"
               file "$k"
