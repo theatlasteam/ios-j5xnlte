@@ -88,7 +88,8 @@
   <div class="pills">
     <span class="pill"><span class="dot"></span>lk2nd + fastboot live</span>
     <span class="pill"><span class="dot"></span>public XNU arm64 builds in CI</span>
-    <span class="pill"><span class="dot warn"></span>16 KB-page blocker on A53</span>
+    <span class="pill"><span class="dot"></span>4 KB-granule arm64 kernel links in CI</span>
+    <span class="pill"><span class="dot warn"></span>Apple CPU/platform shim next</span>
     <span class="pill">target: iOS 12 · arm64</span>
   </div>
 </header>
@@ -135,12 +136,12 @@
       <div class="d"><code>xnu-4570</code> (iOS 11) onward ships <code>MASTER.arm64</code>; <code>xnu-4903</code> adds <code>MASTER.arm</code>, <code>MASTER.arm64.bcm2837</code> and Apple SoC machine configs (<code>S5L8960X … T8011</code>). <code>xnu-7195</code> (iOS 14) has <code>MASTER.arm64.iPhoneOS</code>. Still not a complete iOS kernel: closed drivers/platform bits are absent.</div>
     </div>
     <div class="step bad">
-      <div class="t">Architectural show-stopper: 16 KB pages on Cortex-A53 <span class="tag bad">blocker</span></div>
-      <div class="d">All four J5 cores are Cortex-A53, which implements only 4 KB and 64 KB granules (<code>ID_AA64MMFR0_EL1.TGran16 == 0</code>). The stock iOS arm64 kernel/userland assume 16 KB. ios-sweet runs on A55 cores; ios-topaz <em>parks</em> its A53-class cores for exactly this reason. On the J5 there are no other cores to fall back to. The viable research path is UniXNU-style 4 KB-page XNU, not a straight ios-sweet retarget.</div>
+      <div class="t">Correction: 16 KB pages were <em>not</em> the blocker <span class="tag bad">retracted</span></div>
+      <div class="d">A53 lacks the 16 KB granule, but the kernel we build targets <code>S5L8960X</code> → <code>APPLECYCLONE</code> (A7), which does not define <code>__ARM_16K_PG__</code>. Its <code>TCR_TG0_GRANULE_SIZE</code> is <b>4 KB</b>, and <code>ARM_PGSHIFT = 12</code>. A7/A8 shipped iOS 12 on 4 KB hardware granules; &gt;1 GB RAM uses 16 KB VM pages over 4 KB hardware pages via <code>__ARM64_PMAP_SUBPAGE_L1__</code>. The earlier “4 KB XNU from scratch” framing was wrong.</div>
     </div>
     <div class="step warn">
-      <div class="t">4 KB-page XNU + kernel-only bring-up <span class="tag warn">next</span></div>
-      <div class="d">Apply the shared UniXNU/BCM2837 4 KB layout and patches to <code>xnu-4903</code>, then prove entry, timer, GICv2, console/framebuffer and a RAM-disk PID 1 before touching iOS userland. Whether iOS 12 userland tolerates 4 KB pages is unproven.</div>
+      <div class="t">Real next blocker: Apple-specific CPU init <span class="tag warn">next</span></div>
+      <div class="d"><code>start.s</code> writes Cyclone-only HID registers (<code>HID0/1/3/5/8</code>) that A53 does not have, and the platform expert, timers and interrupt controller still assume Apple hardware. These must be guarded, then GICv2/eMMC/MDSS drivers and a kernel-only RAM-disk boot can be attempted.</div>
     </div>
     <div class="step">
       <div class="t">MSM8916 shim: GICv2 + eMMC + MDSS <span class="tag">todo</span></div>
@@ -184,7 +185,7 @@ xnu-4903:makedefs/MakeInc.def
       <tr><td>Display</td><td>AppleCLCD, iPhone X panel</td><td>MDSS/DSI, S6E8AA5X01</td></tr>
       <tr><td>DDR</td><td>upper bank ~0xb0000000</td><td>2 GB @ 0x80000000</td></tr>
       <tr><td>Kernel</td><td>xnu-8796, buildable arm64</td><td>xnu-4903, builds arm64 (CI)</td></tr>
-      <tr><td>Page granule</td><td>16 KB (A55 supports it)</td><td><b>16 KB unsupported by A53</b> — needs 4 KB XNU</td></tr>
+      <tr><td>Page granule</td><td>16 KB (A55 supports it)</td><td>4 KB for <code>S5L8960X</code>/A7 (<code>TCR_TG0_GRANULE_4KB</code>); A53 supports 4 KB</td></tr>
     </tbody>
   </table>
 </section>
@@ -194,7 +195,7 @@ xnu-4903:makedefs/MakeInc.def
   <div class="grid cards">
     <div class="card"><h3>01 · Boot chain</h3><div class="v" style="font-size:1.05rem">lk2nd → fastboot</div><div class="m"><span class="badge b-ok">complete</span></div></div>
     <div class="card"><h3>02 · Kernel</h3><div class="v" style="font-size:1.05rem">xnu-4903 arm64 builds</div><div class="m"><span class="badge b-ok">compiles + links in CI</span></div></div>
-    <div class="card"><h3>03 · Pages</h3><div class="v" style="font-size:1.05rem">16 KB → 4 KB XNU</div><div class="m"><span class="badge b-bad">A53 show-stopper</span></div></div>
+    <div class="card"><h3>03 · Pages</h3><div class="v" style="font-size:1.05rem">4 KB granule (A7 config)</div><div class="m"><span class="badge b-ok">A53-compatible</span></div></div>
     <div class="card"><h3>04 · Shim</h3><div class="v" style="font-size:1.05rem">GICv2 · eMMC · MDSS</div><div class="m"><span class="badge b-warn">design</span></div></div>
     <div class="card"><h3>05 · Userland</h3><div class="v" style="font-size:1.05rem">launchd → SpringBoard</div><div class="m"><span class="badge b-warn">after 03+04</span></div></div>
   </div>
@@ -202,7 +203,7 @@ xnu-4903:makedefs/MakeInc.def
 
 <footer>
   <p><strong>ios-j5xnlte</strong> · experimental hardware bring-up · not affiliated with Apple or Samsung.</p>
-  <p style="margin-top:6px">Boot chain proven on real hardware. Kernel path documented honestly. Built on the shoulders of <a href="https://github.com/dipa-studio/ios-sweet">ios-sweet</a> and <a href="https://github.com/msm8916-mainline">msm8916-mainline</a>.</p>
+  <p style="margin-top:6px">Boot chain proven on real hardware. Kernel path documented honestly. Built on the shoulders of <a href="https://github.com/0xSojalSec/ios-sweet">ios-sweet</a> and <a href="https://github.com/msm8916-mainline">msm8916-mainline</a>.</p>
 </footer>
 
 </div>
