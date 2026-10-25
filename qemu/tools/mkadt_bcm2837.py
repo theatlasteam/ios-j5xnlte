@@ -49,7 +49,7 @@ def build(seed=None):
         node(f'cpu{i}', [
             ('AAPL,phandle', u32(0x200 + i)),
             ('device_type', cstr('cpu')),
-            ('reg', u32(i << 8)),
+            ('reg', u32(i)),
             ('cpu-id', u32(i)),
             ('state', cstr('running' if i == 0 else 'stopped')),
             ('timebase-frequency', u32(TIMEBASE)),
