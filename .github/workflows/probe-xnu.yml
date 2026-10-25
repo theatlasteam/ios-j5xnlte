@@ -215,6 +215,20 @@ jobs:
           print('patched assym rule occurrences:', hits)
           PY
 
+      - name: Patch BCM2837 board config
+        if: env.MACHINE == 'BCM2837'
+        run: |
+          set -e
+          python3 - <<'PY'
+          p = 'xnu/pexpert/pexpert/arm64/board_config.h'
+          s = open(p).read()
+          needle = '#define ARM_BOARD_CLASS_BCM2837\n'
+          assert needle in s, 'BCM2837 board block not found'
+          s = s.replace(needle, needle + '#define CORE_NCTRS 8\n', 1)
+          open(p, 'w').write(s)
+          print('patched CORE_NCTRS for BCM2837')
+          PY
+
       - name: Attempt arm64 build
         continue-on-error: true
         run: |
