@@ -13,6 +13,9 @@ on:
       tag:
         description: XNU tag to attempt building
         default: xnu-4903.221.2
+      machine:
+        description: arm64 machine config (S5L8960X = A7/4K, BCM2837 = A53/GICv2)
+        default: S5L8960X
   push:
     paths:
       - ".github/workflows/probe-xnu.yml"
@@ -23,6 +26,7 @@ jobs:
     timeout-minutes: 90
     env:
       TAG: ${{ inputs.tag || 'xnu-4903.221.2' }}
+      MACHINE: ${{ inputs.machine || 'S5L8960X' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -217,7 +221,7 @@ jobs:
           set -o pipefail
           SDK=$(xcrun --sdk macosx --show-sdk-path)
           echo "SDKROOT=$SDK" | tee build.log
-          make -C xnu SDKROOT="$SDK" ARCH_CONFIGS=ARM64 \
+          make -C xnu SDKROOT="$SDK" ARCH_CONFIGS=ARM64 MACHINE_CONFIGS="$MACHINE" \
             KERNEL_CONFIGS=DEVELOPMENT -j"$(sysctl -n hw.ncpu)" 2>&1 | tee -a build.log || true
 
       - name: Debug assym generation
@@ -241,23 +245,23 @@ jobs:
         run: |
           g=$(find xnu/BUILD -name 'genassym.o' | head -1)
           a=$(find xnu/BUILD -name 'assym.s' | head -1)
-          k=$(find xnu/BUILD -name 'kernel.development.s5l8960x' -type f | head -1)
+          k=$(find xnu/BUILD -name "kernel.development.*" -type f -not -name '*.dSYM' | head -1)
           [ -n "$g" ] && cp "$g" genassym.o || true
           [ -n "$a" ] && cp "$a" assym.s || true
-          [ -n "$k" ] && cp "$k" kernel.development.s5l8960x || true
-          ls -l genassym.o assym.s kernel.development.s5l8960x 2>/dev/null || true
+          [ -n "$k" ] && cp "$k" kernel.development || true
+          ls -l genassym.o assym.s kernel.development 2>/dev/null || true
 
       - name: Summarize
         if: always()
         run: |
           {
             echo ""
-            echo "## build attempt: $TAG (ARCH_CONFIGS=ARM64)"
+            echo "## build attempt: $TAG (ARCH_CONFIGS=ARM64 MACHINE_CONFIGS=$MACHINE)"
             echo '```'
             tail -n 30 build.log 2>/dev/null || echo "no log"
             echo '```'
             echo ""
-            k=$(find xnu/BUILD -name 'kernel.development.s5l8960x' -type f | head -1)
+            k=$(find xnu/BUILD -name "kernel.development.*" -type f -not -name '*.dSYM' | head -1)
             if [ -n "$k" ]; then
               echo "## kernel artifact"
               file "$k"
@@ -271,12 +275,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: xnu-arm64-probe
+          name: xnu-arm64-${{ env.MACHINE }}
           path: |
             report.md
             build.log
             assym-debug.txt
             genassym.o
             assym.s
-            kernel.development.s5l8960x
+            kernel.development
           retention-days: 14
